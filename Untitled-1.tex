@@ -1,0 +1,417 @@
+% =====================================================================
+% Computational String Art Report (Revised)
+% - Accurate to implementation in "1st review.py"
+% - Expanded mathematical explanation
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---- Engine / Korean safety ------------------------------------------
+\usepackage{iftex}
+\ifPDFTeX
+  \errmessage{This document requires XeLaTeX or LuaLaTeX for Korean text.}
+\fi
+\usepackage{kotex}
+
+% ---- Math / theorem ---------------------------------------------------
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+
+% ---- Layout / graphics ------------------------------------------------
+\usepackage[margin=2.6cm]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+
+% ---- Code listing -----------------------------------------------------
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  commentstyle=\color{gray!90!black},
+  stringstyle=\color{red!60!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  stepnumber=1,
+  numbersep=8pt,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  tabsize=4,
+  captionpos=b
+}
+
+% ---- Hyperlinks / TOC reliability ------------------------------------
+\usepackage{hyperref}
+\usepackage{bookmark}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!60!black,
+  citecolor=blue!60!black,
+  urlcolor=blue!60!black,
+  pdftitle={Computational String Art Report},
+  pdfauthor={수학과 예술}
+}
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{3}
+
+% ---- Theorem env ------------------------------------------------------
+\newtheorem{definition}{정의}[section]
+\newtheorem{theorem}{정리}[section]
+\newtheorem{remark}{해설}[section]
+
+\title{\textbf{Computational String Art 알고리즘 분석 보고서}\\[4pt]
+\large \texttt{1st review.py} 구현 기반의 수학적/계산적 교정본}
+\author{수학과 예술}
+\date{2026년 3월}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\clearpage
+
+\section{문서 교정 목적과 범위}
+기존 초안은 전반적으로 구조가 잘 잡혀 있었지만, 핵심 수학 모델이 현재 파이썬 구현과 일부 다르게 기술되어 있었다.
+대표적으로 기존 문서는 잔차를 가산적으로 줄이는 형태
+\(R \leftarrow R - w\ell\)를 중심으로 설명했는데,
+실제 코드(\texttt{1st review.py})는 \textbf{투과율(transmittance) 곱셈 모델}을 사용한다.
+즉, 선 하나를 추가할 때 밝기가 일정량 빠지는 것이 아니라,
+현재 밝기 자체가 비율로 감소한다.
+
+이 문서는 다음을 목표로 한다.
+\begin{enumerate}
+  \item \texttt{1st review.py}의 실제 계산 흐름을 단계별로 정확히 재서술한다.
+  \item 선택 점수 함수, 정지 조건, 정련(refinement) 로직을 코드와 일치시킨다.
+  \item 수식 유도 과정을 늘려 ``왜 이런 식이 나오는지''를 자세히 설명한다.
+  \item 목차, 링크, 엔진 관련 LaTeX 자잘한 문제를 함께 교정한다.
+\end{enumerate}
+
+\section{알고리즘 전체 구조 요약}
+코드는 크게 다섯 단계로 동작한다.
+\begin{enumerate}
+  \item 입력 이미지 전처리와 원형 마스크 적용
+  \item 핀 좌표 생성, 유효 핀 쌍의 선분 픽셀 사전계산
+  \item 가중 에너지 감소량 \(\Delta E\) 최대화 기반 탐욕 선택
+  \item 개선 정체(stall) 기반 조기 정지
+  \item 시퀀스 재생성 정련(refinement) 라운드
+\end{enumerate}
+
+핵심 상태변수는 캔버스의 흑백값이 아니라 \textbf{투과율} \(T\)이다.
+\begin{equation}
+T(r,c) \in [0,1], \qquad R(r,c)=255\,T(r,c)
+\end{equation}
+여기서 \(R\)은 렌더된 밝기(0=검정, 255=흰색)다.
+초기값은 백지이므로 \(T\equiv 1\)이다.
+
+\section{기하: 핀 배치와 유효 연결}
+\subsection{원 위 등간격 핀}
+핀 개수를 \(N\), 이미지 한 변을 \(M\)이라 하면
+중심 \((M/2, M/2)\), 반지름 \(M/2-1\) 원 위에 배치한다.
+\begin{equation}
+P_k=\left(\frac{M}{2}+\left(\frac{M}{2}-1\right)\cos\frac{2\pi k}{N},
+\frac{M}{2}+\left(\frac{M}{2}-1\right)\sin\frac{2\pi k}{N}\right),\quad k=0,\dots,N-1
+\end{equation}
+구현에서는 정수 픽셀로 반올림/클리핑한다.
+
+\subsection{최소 핀 거리 제약}
+너무 가까운 핀끼리 잇는 선은 시각적 기여가 작고 계산량만 늘릴 수 있다.
+코드는 원호 거리
+\begin{equation}
+d_{\mathrm{arc}}(i,j)=\min\bigl(|i-j|,\,N-|i-j|\bigr)
+\end{equation}
+를 사용해
+\begin{equation}
+d_{\mathrm{arc}}(i,j)\ge \delta\quad (\delta=\texttt{min\_pin\_distance})
+\end{equation}
+인 쌍만 유효하게 둔다.
+
+\section{선분 래스터화와 사전계산}
+\subsection{왜 사전계산이 필요한가}
+탐욕 반복마다 모든 후보 선분을 평가하므로,
+반복 중에 매번 선분 픽셀을 다시 계산하면 비용이 폭증한다.
+따라서 코드가 시작될 때 유효 쌍 전체에 대해
+\((rr,cc,val)\)을 캐시한다.
+\begin{itemize}
+  \item \(rr,cc\): 선이 지나가는 픽셀 인덱스
+  \item \(val\in[0,1]\): 안티앨리어싱 강도
+\end{itemize}
+
+\subsection{Xiaolin-Wu 안티앨리어싱}
+코드는 \texttt{skimage.draw.line\_aa}가 있으면 사용하고,
+없으면 내장 Wu 스타일 구현으로 대체한다.
+핵심 아이디어는 한 열(column)에서 이상적인 실수 좌표 \(y\)를 기준으로
+아래/위 픽셀에 \((1-f, f)\)로 분배하는 것이다.
+\begin{equation}
+y=\lfloor y\rfloor+f,\quad
+w_{\text{low}}=1-f,\quad w_{\text{high}}=f
+\end{equation}
+이 가중치가 곧 \texttt{val}에 들어가며,
+후속 에너지 계산에서 픽셀 기여량으로 직접 쓰인다.
+
+\subsection{병렬 선분 캐시}
+\texttt{multiprocessing.Pool}로 유효 쌍 태스크를 병렬 처리한다.
+태스크는 \((i,j,r_0,c_0,r_1,c_1,M)\)이고,
+워커는 화면 밖 픽셀을 잘라낸 \(rr,cc,val\)을 반환한다.
+이 설계 덕분에 탐욕 루프에서는 해시 조회만으로 선 데이터 접근이 가능하다.
+
+\section{영상 모델: 목표영상, 중요도 맵, 에너지 함수}
+\subsection{목표영상과 마스크}
+이미지는 그레이스케일로 로드 후 \(M\times M\)로 리사이즈한다.
+원 바깥은 흰색으로 강제된다.
+\begin{equation}
+I_{\mathrm{target}} \leftarrow I\cdot M_{\mathrm{circle}} + 255\,(1-M_{\mathrm{circle}})
+\end{equation}
+즉, 최적화는 사실상 원 내부에서만 의미 있게 진행된다.
+
+\subsection{에지 기반 중요도 맵 \(W\)}
+코드는 Sobel 커널(실패 시 \texttt{FIND\_EDGES} 대체)을 사용해 에지 크기 \(E\)를 구한 뒤
+정규화하여 중요도 맵을 만든다.
+\begin{equation}
+W(r,c)=\bigl(1+\lambda E(r,c)\bigr)\,M_{\mathrm{circle}}(r,c),\quad \lambda=\texttt{importance\_edge\_weight}
+\end{equation}
+\(\lambda=0\)이면 균일 가중치, \(\lambda>0\)이면 윤곽/디테일 픽셀의 오차를 더 크게 본다.
+
+\subsection{최적화 목표}
+현재 투과율을 \(T\), 렌더밝기를 \(R=255T\)라 할 때,
+코드가 최소화하려는 가중 에너지는
+\begin{equation}
+E(T)=\sum_{r,c} W(r,c)\,\bigl(R(r,c)-I_{\mathrm{target}}(r,c)\bigr)^2
+\end{equation}
+이다.
+
+\section{핵심 수식: 한 가닥 추가 시 에너지 감소량}
+기존 보고서의 가장 큰 오차가 이 부분이었다.
+실제 구현은 다음의 폐형식(closed form) 점수를 사용한다.
+
+\subsection{한 픽셀에서의 변화}
+후보 선분이 픽셀 \(i\)를 \(v_i\) 강도로 통과하고,
+실 불투명도 계수를 \(\alpha\)라 하면,
+\begin{equation}
+T'_i=T_i(1-\alpha v_i),\qquad
+R'_i=R_i(1-\alpha v_i)
+\end{equation}
+여기서
+\begin{equation}
+d_i=R_i-I_i,\qquad s_i=R_i\alpha v_i
+\end{equation}
+로 두면 \(R'_i-I_i=d_i-s_i\)이므로
+\begin{equation}
+(d_i)^2-(d_i-s_i)^2 = 2d_is_i-s_i^2=s_i(2d_i-s_i)
+\end{equation}
+가 된다.
+
+\subsection{전체 감소량}
+가중합으로 모으면
+\begin{equation}
+\Delta E = \sum_i W_i\,s_i(2d_i-s_i)
+\end{equation}
+이며,
+\(\Delta E>0\)이면 오차 감소, \(\Delta E\le 0\)이면 비개선 선택이다.
+이 식이 코드의 \texttt{\_line\_error\_reduction()}와 정확히 일치한다.
+
+\begin{lstlisting}[caption={실제 점수 계산 핵심 (요약)}]
+R = 255.0 * transmittance[rr, cc]
+T = self.target[rr, cc]
+W = self.importance[rr, cc]
+a = self.string_opacity * val
+s = R * a
+d = R - T
+score = np.sum(W * s * (2.0 * d - s))
+\end{lstlisting}
+
+\section{탐욕 단계(Phase 1) 상세 해설}
+\subsection{시작 핀 자동 선택}
+코드는 시작 핀을 0번으로 고정하지 않는다.
+각 핀 \(p\)에서 나가는 후보 중 최대 \(\Delta E\)를 계산해,
+그 값이 가장 큰 핀을 시작점으로 잡는다.
+\begin{equation}
+p_0=\arg\max_p \max_{q\in\mathcal N(p)}\Delta E(p,q)
+\end{equation}
+이는 초기 수렴 속도 개선에 유리하다.
+
+\subsection{후보 평가와 중복 페널티}
+현재 핀 \(p_t\)에서 후보 \(q\)마다 \(\Delta E(p_t,q)\)를 계산한다.
+같은 핀쌍 재사용 횟수를 \(u\)라 할 때,
+코드는 점수를
+\begin{equation}
+\Delta E_{\mathrm{pen}}=\Delta E\cdot\max(0.05,\,1-0.2u)
+\end{equation}
+로 감쇄한다.
+즉, 재사용을 완전히 금지하지는 않되,
+지나친 반복을 강하게 억제한다.
+
+\subsection{실 적용 업데이트}
+최적 후보 \(q_t\)를 고른 뒤,
+해당 선분 픽셀에서 투과율을 곱셈으로 갱신한다.
+\begin{equation}
+T_{t+1}(i)=T_t(i)\,(1-\alpha v_i)
+\end{equation}
+이 식은 누적이 진행될수록 동일 선분의 추가 효과가 자연히 감소하는
+물리적 성질(포화)을 반영한다.
+
+\subsection{정지 조건}
+코드는 두 층의 정지 로직을 둔다.
+\begin{enumerate}
+  \item 즉시 정지: 최적 점수 \(\le 0\) 또는 유효 후보 없음
+  \item 추세 정지: 최근 창 평균이 초기 창 평균의 0.5\% 미만 상태가 80회 초과
+\end{enumerate}
+수식으로 쓰면, 창 크기 \(w=800\), 반복 \(t\)에서
+\begin{equation}
+\frac{\overline{\Delta E}_{\mathrm{recent}}}{\overline{\Delta E}_{\mathrm{early}}}<0.005
+\end{equation}
+가 지속될 때 중지한다.
+
+\section{정련 단계(Phase 2) 상세 해설}
+기존 초안에서 상대적으로 짧게 다뤄졌던 부분이다.
+실제 구현에서는 정련이 품질에 꽤 중요하다.
+
+\subsection{정련의 아이디어}
+탐욕은 순차 의존성이 강해 초반 선택이 후반을 제한한다.
+정련은 기존 시퀀스를 그대로 신뢰하지 않고,
+\textbf{처음부터 다시 재생성}하면서 각 단계에서 원래 목적지와 대체 목적지를 재비교한다.
+
+\subsection{한 단계의 의사결정}
+정련 라운드에서 현재 소스 핀을 \(p\)라 하면,
+\begin{enumerate}
+  \item 기존 시퀀스 목적지 \(q_{\mathrm{orig}}\)의 점수 계산
+  \item 동일 시점에서 가능한 전체 후보 중 최선 \(q_{\mathrm{best}}\) 계산
+  \item \(\Delta E(q_{\mathrm{best}})>\Delta E(q_{\mathrm{orig}})\)면 교체
+\end{enumerate}
+
+\subsection{스킵 규칙과 연속성}
+가장 좋은 후보조차 \(\Delta E\le 0\)이면 문자열 추가를 실질적으로 건너뛰되,
+경로 연속성을 위해 시퀀스에는 원래 목적지를 append한다.
+이 때문에 물리 제작 순서(핀 이동 순서)와 계산 안정성 사이 타협이 유지된다.
+
+\section{병렬화 설계와 성능 관점}
+\subsection{서로 다른 병렬 전략}
+코드는 두 종류의 병렬화를 사용한다.
+\begin{enumerate}
+  \item 선분 사전계산: \texttt{multiprocessing.Pool} (프로세스 병렬)
+  \item 후보 점수평가: \texttt{ThreadPoolExecutor} (스레드 병렬)
+\end{enumerate}
+첫 단계는 CPU 바운드 대량 독립 태스크라 프로세스 병렬이 적합하고,
+두 번째는 캐시된 배열 조회 중심이라 스레드 분할이 실용적이다.
+
+\subsection{대략적 복잡도}
+\(N\)핀, 유효선분 수 \(|\mathcal E|\), 평균 선분 픽셀 길이 \(\bar L\),
+문자열 수 \(T\), 핀당 후보 수 \(K\)라 하면
+\begin{align}
+\text{Precompute} &\approx O(|\mathcal E|\bar L),\\
+\text{Greedy} &\approx O(TK\bar L),\\
+\text{Refinement} &\approx O(RTK\bar L)
+\end{align}
+(\(R\): 정련 라운드 수)
+
+실제로는 캐시 적중률, 배열 연산 벡터화, 파이썬 오버헤드,
+메모리 대역폭에 의해 상수항이 크게 좌우된다.
+
+\section{코드 기반 파라미터 해석}
+\begin{table}[H]
+\centering
+\begin{tabular}{>{\raggedright\arraybackslash}p{3.1cm} p{2.5cm} p{7.8cm}}
+\toprule
+이름 & 기본값 & 의미 및 영향 \\
+\midrule
+\texttt{num\_pins} & 288 & 핀 해상도. 증가 시 표현력 상승, 선분쌍/계산량 급증. \\
+\texttt{max\_strings} & 10000 & 최대 반복 수. 높을수록 디테일 증가하나 포화/시간 증가. \\
+\texttt{string\_opacity} & 0.08 & 한 가닥의 광학적 감쇠 강도. 너무 크면 과암화, 너무 작으면 수렴 지연. \\
+\texttt{min\_pin\_distance} & 20 & 짧은 선 금지 강도. 너무 작으면 잡음, 너무 크면 세밀구조 손실. \\
+\texttt{img\_size} & 700 & 작업 해상도. 증가 시 품질/비용 모두 상승. \\
+\texttt{importance\_edge\_weight} & 1.5 & 윤곽 가중 강조량. 높을수록 구조 보존, 톤 균일성은 다소 약화 가능. \\
+\texttt{refinement\_rounds} & 1 & 정련 횟수. 1회만으로도 초기 탐욕 편향 완화 효과가 큼. \\
+\bottomrule
+\end{tabular}
+\caption{\texttt{1st review.py} 주요 파라미터 해석}
+\end{table}
+
+\section{기존 초안 대비 교정 포인트}
+이번 교정에서 바뀐 핵심은 아래와 같다.
+\begin{enumerate}
+  \item 가산 잔차 모델 중심 서술을 \textbf{곱셈 투과율 모델} 중심으로 교체
+  \item 점수함수를 평균 잔차 기반에서 \textbf{가중 L2 에너지 감소량}으로 교체
+  \item 에지 중요도 맵 \(W\)와 중복 페널티를 코드와 동일하게 반영
+  \item 시작 핀 자동 선택, 정련 라운드, 추세 기반 정지조건 상세화
+  \item 병렬화 구조(프로세스/스레드 분리)를 구현 관점으로 설명 보강
+\end{enumerate}
+
+\section{LaTeX 자잘한 오류/불편 교정 사항}
+사용 중 말씀하신 문제(예: 목차가 안 보이는 현상)를 포함해 다음을 반영했다.
+\begin{enumerate}
+  \item \textbf{엔진 가드 추가}: pdfLaTeX로 컴파일 시 즉시 에러를 내고, XeLaTeX/LuaLaTeX 사용을 강제.
+  \item \textbf{목차 안정성 강화}: \texttt{bookmark} 패키지 추가, \texttt{tocdepth/secnumdepth} 명시.
+  \item \textbf{목차 출력 페이지 분리}: \texttt{\textbackslash tableofcontents} 뒤 \texttt{\textbackslash clearpage}로 본문과 분리.
+  \item \textbf{불필요 폰트 인코딩 제거}: XeLaTeX 환경에서 충돌 가능성이 있는 \texttt{fontenc(T1)}를 제거.
+\end{enumerate}
+
+\paragraph{목차가 비어 보일 때 체크}
+LaTeX 목차는 원칙적으로 최소 2회 컴파일이 필요하다.
+첫 번째 컴파일에서 \texttt{.toc} 생성, 두 번째에서 렌더된다.
+즉,
+\begin{center}
+\texttt{xelatex Untitled-1.tex} \;\(\rightarrow\)\; \texttt{xelatex Untitled-1.tex}
+\end{center}
+순서가 안전하다.
+
+\section{알고리즘 흐름도 (구현 반영)}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  node distance=1.1cm,
+  box/.style={rectangle,draw,rounded corners,align=center,minimum width=11.5cm,minimum height=0.85cm,font=\small},
+  decision/.style={diamond,draw,aspect=3,align=center,font=\small,inner sep=1pt},
+  arr/.style={-{Stealth[length=2.5mm]},thick}
+]
+\node[box] (a) {입력 이미지 로드, 원형 마스크 적용, 에지 기반 중요도 맵 \(W\) 계산};
+\node[box,below=of a] (b) {핀 좌표 생성 \(P_k\), 유효선분 \((i,j)\)별 \((rr,cc,val)\) 사전계산 (병렬)};
+\node[box,below=of b] (c) {초기화: \(T\equiv 1\), 시작 핀 \(p_0=\arg\max_p\max_q\Delta E(p,q)\)};
+\node[box,below=of c] (d) {반복: 후보별 \(\Delta E\) 계산 + 재사용 페널티, 최적 후보 선택};
+\node[decision,below=1.6cm of d] (e) {최적 점수 \(\le 0\)\; 또는\; 개선 정체?};
+\node[box,below=1.6cm of e] (f) {선 적용: \(T\leftarrow T(1-\alpha v)\), 시퀀스/사용횟수/히스토리 갱신};
+\node[box,right=2.8cm of e] (g) {정지 후 정련 라운드 수행\newline(원래 목적지 vs 대체 목적지 재평가)};
+\node[box,below=of g] (h) {최종 렌더: \(R=255T\), MSE/PSNR 계산, 결과/시퀀스/좌표 저장};
+
+\draw[arr] (a) -- (b);
+\draw[arr] (b) -- (c);
+\draw[arr] (c) -- (d);
+\draw[arr] (d) -- (e);
+\draw[arr] (e) -- node[left]{아니오} (f);
+\draw[arr] (f.west) -- ++(-3.2,0) |- (d.west);
+\draw[arr] (e) -- node[above]{예} (g);
+\draw[arr] (g) -- (h);
+\end{tikzpicture}
+\caption{\texttt{1st review.py} 실제 구현 흐름}
+\end{figure}
+
+\section{결론}
+\texttt{1st review.py}는 단순 ``가장 어두운 선을 고르는'' 방식이 아니라,
+\textbf{물리 기반 투과율 모델 + 가중 L2 에너지 감소량 최적화 + 정련 단계}를 결합한 구현이다.
+이 구조 덕분에
+\begin{itemize}
+  \item 과도한 암화(over-darkening) 제어,
+  \item 윤곽 우선 복원,
+  \item 탐욕 선택의 후반 편향 완화
+\end{itemize}
+를 동시에 달성한다.
+
+이번 교정본은 코드의 실제 수식과 제어 흐름을 직접 대응시켜,
+보고서가 구현 설명서로도 사용될 수 있도록 구성했다.
+
+\input{code_appendix.tex}
+
+\begin{thebibliography}{9}
+\bibitem{birsak2018}
+Michael Birsak et al.,
+\textit{String Art: Towards Computational Fabrication of String Images},
+Eurographics, 2018.
+
+\bibitem{wu1991}
+Xiaolin Wu,
+\textit{An Efficient Antialiasing Technique},
+SIGGRAPH Proceedings, 1991.
+\end{thebibliography}
+
+\end{document}
