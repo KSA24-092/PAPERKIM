@@ -1,0 +1,593 @@
+% =====================================================================
+%  Computational String Art — 중간발표 (Beamer)
+%  수학과 예술: 스트링 아트의 계산적 생성
+%  ─────────────────────────────────────────────────────────────────
+%  발표 구성 (총 10분, 2인 발표)
+%    발표자 A ≈ 5–6분: 슬라이드 1–8  (프로젝트 소개 + 수학적 모델)
+%    발표자 B ≈ 4–5분: 슬라이드 9–17 (차별점 + 예술적 가치 + 마무리)
+% =====================================================================
+\documentclass[10pt,aspectratio=169]{beamer}
+
+% ---- Theme -----------------------------------------------------------
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+% ---- Korean / fonts --------------------------------------------------
+\usepackage{kotex}
+
+% ---- Math ------------------------------------------------------------
+\usepackage{amsmath,amssymb,mathtools}
+
+% ---- Graphics / layout -----------------------------------------------
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+
+% ---- Code listing ----------------------------------------------------
+\usepackage{listings}
+\usepackage{xcolor}
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\tiny,
+  keywordstyle=\color{blue!70!black}\bfseries,
+  commentstyle=\color{gray!80!black},
+  stringstyle=\color{red!60!black},
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  tabsize=4,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=5pt
+}
+
+% ---- Meta info -------------------------------------------------------
+\title[Computational String Art]{%
+  \textbf{Computational String Art}\\[4pt]
+  탐욕 알고리즘 기반 스트링 아트의 수학적 분석과 개선}
+\subtitle{수학과 예술 — 중간발표}
+\author{김페이퍼}
+\institute{한국과학영재학교}
+\date{2026년 3월}
+
+% =====================================================================
+\begin{document}
+
+% ── 표지 ──────────────────────────────────────────────
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ── 목차 ──────────────────────────────────────────────
+\begin{frame}{목차}
+  \tableofcontents
+\end{frame}
+
+% *****************************************************
+% *  발표자 A (수학 중심, 약 5–6분)                    *
+% *****************************************************
+
+% =================================================================
+\section{프로젝트 소개}
+% =================================================================
+
+\begin{frame}{프로젝트 개요}
+  \begin{block}{주제: 수학과 예술 — Computational String Art}
+    입력 이미지를 \textbf{실(thread)과 핀(pin)}만으로 재현하는
+    스트링 아트를 \textbf{컴퓨터 알고리즘}으로 자동 생성한다.
+  \end{block}
+
+  \vspace{0.3cm}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \textbf{핵심 질문}
+      \begin{itemize}
+        \item 원형 프레임 위의 $N$개 핀 사이에 실을 어떤 순서로 연결하면
+              원본 이미지에 가장 가까운 결과를 얻을 수 있는가?
+        \item 수학적 최적화 기법을 어떻게 활용할 수 있는가?
+      \end{itemize}
+
+      \vspace{0.3cm}
+      \textbf{주요 논문}
+      \begin{itemize}
+        \item Demoussel et al., \textit{``A Greedy Algorithm for Generative String Art''}, Bridges 2022
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.4\textwidth}
+      \begin{tikzpicture}[scale=0.65]
+        \draw[thick] (0,0) circle (2.2);
+        \foreach \i in {0,1,...,23} {
+          \fill ({2.2*cos(\i*15)},{2.2*sin(\i*15)}) circle (1.5pt);
+        }
+        \foreach \a/\b in {0/7,7/15,15/3,3/20,20/10,10/18,18/5,5/22,22/12,12/1} {
+          \draw[gray!70,line width=0.3pt]
+            ({2.2*cos(\a*15)},{2.2*sin(\a*15)}) --
+            ({2.2*cos(\b*15)},{2.2*sin(\b*15)});
+        }
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{논문 소개: Bridges 2022}
+  \begin{block}{``A Greedy Algorithm for Generative String Art''
+    \normalfont — Demoussel, Larboulette, Dattatreya (Bridges 2022)}
+    \begin{itemize}
+      \item \textbf{Bridges Conference}: 수학과 예술의 교차점을 다루는 국제 학회
+      \item Computational String Art에 대한 \textbf{탐욕 알고리즘(greedy algorithm)} 제안
+    \end{itemize}
+  \end{block}
+
+  \vspace{0.2cm}
+  \textbf{논문의 핵심 기여}:
+  \begin{enumerate}
+    \item \textbf{선 선택 휴리스틱}: 오차 최소화 vs.\ 최대 암도 선택의 비교
+    \item \textbf{정지 조건}: 새로운 선이 오차를 줄이지 못하면 자동 종료
+    \item \textbf{반투명 실 지원}: 불투명(opaque) 실에서 반투명(non-opaque) 실로 확장
+    \item \textbf{중요도 맵}: 특정 영역에 가중치를 부여하여 디테일 강조
+    \item \textbf{실행 속도 최적화}: 후보 선분 집합을 부분 샘플링
+  \end{enumerate}
+
+  \vspace{0.2cm}
+  \begin{alertblock}{선행 연구와의 위치}
+    Vrellis (2016, 최초 알고리즘) → Birsak et al.\ (2018, 에너지 최적화) →
+    \textbf{Bridges 2022 (실용적 탐욕 접근 + 반투명 실)}
+  \end{alertblock}
+\end{frame}
+
+% =================================================================
+\section{문제의 수학적 정의}
+% =================================================================
+
+\begin{frame}{String Art 문제의 수학적 정의}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \textbf{입력}:
+      \begin{itemize}
+        \item 그레이스케일 이미지 $I_{\text{target}}$ ($M \times M$ 픽셀)
+        \item 원 위에 등간격 배치된 $N$개 핀
+      \end{itemize}
+
+      \vspace{0.2cm}
+      \textbf{출력}:
+      \begin{itemize}
+        \item 핀 쌍의 순서 집합 (실의 연결 순서)
+        \item 각 실의 밝기(또는 불투명도)
+      \end{itemize}
+
+      \vspace{0.2cm}
+      \textbf{핀 좌표}:
+      \[
+        P_k = \left(\tfrac{M}{2} + r\cos\tfrac{2\pi k}{N},\;
+              \tfrac{M}{2} + r\sin\tfrac{2\pi k}{N}\right)
+      \]
+
+      \vspace{0.2cm}
+      \textbf{목표}: 실 이미지와 원본 사이의 \textbf{오차 최소화}
+      \[
+        \min \sum_{r,c} \bigl(R(r,c) - I_{\text{target}}(r,c)\bigr)^2
+      \]
+    \end{column}
+    \begin{column}{0.4\textwidth}
+      \begin{tikzpicture}[scale=0.7]
+        \draw[thick] (0,0) circle (2.5);
+        \foreach \i in {0,1,...,11} {
+          \fill[red!70!black] ({2.5*cos(\i*30)},{2.5*sin(\i*30)}) circle (2pt);
+          \node[font=\tiny] at ({2.9*cos(\i*30)},{2.9*sin(\i*30)}) {\i};
+        }
+        \draw[blue!50,line width=0.5pt]
+          ({2.5*cos(0)},{2.5*sin(0)}) -- ({2.5*cos(150)},{2.5*sin(150)});
+        \draw[blue!50,line width=0.5pt]
+          ({2.5*cos(30)},{2.5*sin(30)}) -- ({2.5*cos(210)},{2.5*sin(210)});
+        \draw[blue!50,line width=0.5pt]
+          ({2.5*cos(60)},{2.5*sin(60)}) -- ({2.5*cos(240)},{2.5*sin(240)});
+        \node[font=\tiny,blue!60!black] at (0,-3.2) {$N$개 핀, 핀 쌍마다 후보 선분};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% =================================================================
+\section{탐욕 알고리즘의 수학}
+% =================================================================
+
+\begin{frame}{Bridges 논문의 탐욕 알고리즘}
+  \begin{block}{기본 아이디어 (3단계 반복)}
+    \begin{enumerate}
+      \item 가능한 모든 선분 중 \textbf{오차를 가장 많이 줄이는 선분} 선택
+      \item 선분을 캔버스에 \textbf{그리기} (이미지에 반영)
+      \item 오차가 줄지 않으면 \textbf{종료}
+    \end{enumerate}
+  \end{block}
+
+  \vspace{0.3cm}
+  \textbf{선 선택 점수} — 각 후보 선분 $\ell$에 대해:
+  \[
+    \text{score}(\ell) = \sum_{i \in \ell} \bigl(\text{현재 오차}_i^2 - \text{선 추가 후 오차}_i^2\bigr)
+  \]
+
+  \vspace{0.2cm}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{exampleblock}{불투명(opaque) 실}
+        선 픽셀을 검정(0)으로 덮어쓰기\\
+        $R'_i = 0$
+      \end{exampleblock}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{exampleblock}{반투명(non-opaque) 실}
+        기존 밝기를 비율로 감소\\
+        $R'_i = R_i \cdot (1 - \alpha)$
+      \end{exampleblock}
+    \end{column}
+  \end{columns}
+
+  \vspace{0.3cm}
+  $N$개 핀 → $\frac{N(N{-}1)}{2}$개 후보 선분 → 매 반복마다 전부 평가
+\end{frame}
+
+\begin{frame}{투과율 모델과 에너지 함수}
+  \textbf{반투명 실}의 물리적 모델 (Beer--Lambert 법칙):
+
+  \vspace{0.2cm}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \begin{align}
+        T(r,c) &\in [0,1] \quad \text{(투과율)} \\[2pt]
+        R(r,c) &= 255 \cdot T(r,c) \quad \text{(렌더 밝기)} \\[4pt]
+        \text{선 추가:}\quad T'_i &= T_i \cdot (1 - \alpha \cdot v_i)
+      \end{align}
+
+      \begin{itemize}
+        \item $\alpha$: 실 불투명도 ($0 < \alpha \le 1$)
+        \item $v_i$: 해당 픽셀의 안티앨리어싱 가중치
+      \end{itemize}
+
+      \vspace{0.2cm}
+      $\Rightarrow$ 실이 겹칠수록 효과가 \textbf{자연히 포화}\\
+      \quad\; (가산 모델의 과도 암화 문제 해결)
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \textbf{에너지 함수}:
+      \[
+        E = \sum_{r,c} \bigl(R(r,c) - I_{\text{target}}\bigr)^2
+      \]
+
+      \textbf{한 가닥 추가 시 에너지 감소량}:
+      \begin{align*}
+        s_i &= R_i \cdot \alpha v_i \\
+        d_i &= R_i - I_i \\[4pt]
+        \Delta E &= \sum_i s_i(2d_i - s_i)
+      \end{align*}
+
+      $\Delta E > 0$ → 좋은 선택\\
+      $\Delta E \le 0$ → 정지
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{알고리즘 흐름 요약}
+  \begin{center}
+  \begin{tikzpicture}[
+    node distance=0.5cm,
+    box/.style={rectangle,draw,rounded corners,align=center,
+                minimum width=6.8cm,minimum height=0.55cm,font=\small,
+                fill=blue!8},
+    decision/.style={diamond,draw,aspect=3.5,align=center,font=\small,
+                     inner sep=1pt,fill=orange!10},
+    arr/.style={-{Stealth[length=2mm]},thick,blue!60!black},
+    scale=0.8, transform shape
+  ]
+    \node[box] (a) {이미지 로드 → 그레이스케일 → 원형 마스크};
+    \node[box,below=of a] (b) {$N$개 핀 배치, 유효 선분 사전계산};
+    \node[box,below=of b] (c) {후보 선분별 $\Delta E$ 계산, 최대 감소 선분 선택};
+    \node[decision,below=0.6cm of c] (d) {$\Delta E > 0$?};
+    \node[box,left=1.5cm of d] (e) {$T \leftarrow T(1{-}\alpha v)$\\캔버스에 선 적용};
+    \node[box,right=1.5cm of d] (f) {종료: $R = 255T$\\결과 출력};
+
+    \draw[arr] (a) -- (b);
+    \draw[arr] (b) -- (c);
+    \draw[arr] (c) -- (d);
+    \draw[arr] (d) -- node[above,font=\small]{예} (e);
+    \draw[arr] (e.north) |- (c.west);
+    \draw[arr] (d) -- node[above,font=\small]{아니오} (f);
+  \end{tikzpicture}
+  \end{center}
+
+  \vspace{0.2cm}
+  \begin{block}{핵심}
+    매 반복 $O\!\bigl(\tfrac{N^2}{2} \cdot \bar{L}\bigr)$ 연산 —
+    탐욕이므로 전역 최적은 아니지만 \textbf{빠르고 실용적}
+  \end{block}
+\end{frame}
+
+% *****************************************************
+% *    발표자 B (차별점 + 예술, 약 4–5분)              *
+% *****************************************************
+
+% =================================================================
+\section{우리의 개선점 (Bridges 논문과의 차별점)}
+% =================================================================
+
+\begin{frame}{Bridges 논문의 한계점}
+  Demoussel et al.\ (2022) 논문은 실용적이지만 다음과 같은 한계가 있다:
+
+  \vspace{0.3cm}
+  \begin{enumerate}
+    \item \textbf{단순 탐욕}: 매 단계 1-step만 고려 → 근시안적(myopic) 선택
+    \item \textbf{되돌림 불가}: 한 번 그린 선은 제거 불가
+          (Birsak et al.은 제거 가능하나 2시간 이상 소요)
+    \item \textbf{균일 가중치}: 모든 픽셀을 동등하게 취급
+          (중요도 맵은 있으나 에지 기반 자동화 부족)
+    \item \textbf{정규화 부재}: 실 수 제어가 고정 상한 또는 단순 정지 조건에 의존
+    \item \textbf{후처리 없음}: 탐욕 결과가 곧 최종 결과
+  \end{enumerate}
+
+  \vspace{0.3cm}
+  \begin{alertblock}{핵심 질문}
+    탐욕 알고리즘의 빠른 속도를 유지하면서,
+    결과 품질을 \textbf{어떻게 더 끌어올릴 수 있을까?}
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{우리의 개선: 수학적 확장}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{1. 가중 에너지 함수}
+        에지 검출 기반 중요도 맵 $W$:
+        \[
+          W = (1 + \lambda \cdot E_{\text{edge}}) \cdot M_{\text{circle}}
+        \]
+        → 윤곽선에 높은 가중치 부여\\
+        → \textbf{구조적 디테일 우선 복원}
+      \end{block}
+
+      \vspace{0.2cm}
+      \begin{block}{2. 희소 정규화}
+        \[
+          \Delta E_{\text{reg}} = \Delta E - C_s - C_r \!\cdot\! u - C_n \!\cdot\! \mathbb{1}_{\text{new}}
+        \]
+        → 실 수, 핀쌍 재사용, 새 핀 도입에 페널티\\
+        → \textbf{불필요한 실 억제}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{3. 2-step Beam Lookahead}
+        상위 $K$개 후보에 대해 1-step 더 예측:
+        \[
+          \text{score} = \Delta E_{\text{reg}} + w \cdot \Delta E_{\text{next}}
+        \]
+        → 근시안적 선택 문제 완화
+      \end{block}
+
+      \vspace{0.2cm}
+      \begin{block}{4. 다단계 후처리}
+        \begin{itemize}
+          \item \textbf{정련(Refinement)}: 시퀀스 재생성,\\
+                각 선택을 재평가하여 교체
+          \item \textbf{압축}: $(a{\to}b{\to}c)$를 $(a{\to}c)$로 축약
+          \item \textbf{시뮬레이티드 어닐링}: 전역 탐색으로 탈출
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{차별점 요약: Bridges vs.\ 우리의 구현}
+  \begin{center}
+  \small
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{p{3.2cm}p{4.8cm}p{5.2cm}}
+    \toprule
+    항목 & \textbf{Bridges 2022} & \textbf{우리의 구현 (개선)} \\
+    \midrule
+    탐색 전략 & 1-step 탐욕 & 2-step Beam Lookahead \\
+    에너지 함수 & 균일 가중 RMS & 에지 기반 중요도 가중 $L^2$ \\
+    정규화 & 없음 (고정 상한) & 희소 정규화 ($C_s, C_r, C_n$) \\
+    후처리 & 없음 & 정련 + 압축 + 시뮬레이티드 어닐링 \\
+    되돌림 & 불가 & 정련 단계에서 사실상 재선택 \\
+    물리 모델 & 가산/반투명 혼용 & Beer--Lambert 곱셈 모델 일관 적용 \\
+    실행 시간 목표 & $< 1$분 & 수 분 (품질 우선, 병렬화로 보상) \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \vspace{0.3cm}
+  \begin{alertblock}{요약}
+    Bridges 논문의 \textbf{빠르고 단순한 탐욕 프레임워크}를 기반으로,
+    \textbf{물리적 정확성 + 다단계 최적화 + 정규화}를 결합하여
+    품질을 끌어올리는 것이 핵심 차별점
+  \end{alertblock}
+\end{frame}
+
+% =================================================================
+\section{수학적 가치}
+% =================================================================
+
+\begin{frame}{수학적 가치}
+  \begin{block}{1. 이산 최적화 (Discrete Optimization)}
+    \begin{itemize}
+      \item $N$개 핀, 최대 $T$개 실 → 해 공간 크기 $\sim N^T$
+      \item NP-hard 조합 문제를 \textbf{탐욕 + Beam 탐색}으로 근사
+      \item 여행 세일즈맨 문제(TSP)와 유사한 경로 최적화 구조
+    \end{itemize}
+  \end{block}
+
+  \begin{block}{2. 물리 기반 수학 모델링}
+    \begin{itemize}
+      \item Beer--Lambert 법칙: 빛 투과의 지수적 감쇄를 곱셈 모델로 표현
+      \item 에너지 감소량의 \textbf{폐형식(closed-form) 유도}:
+            $\Delta E = \sum W_i \cdot s_i(2d_i - s_i)$
+      \item 연속적 물리 현상을 이산 알고리즘에 연결
+    \end{itemize}
+  \end{block}
+
+  \begin{block}{3. 정규화 이론}
+    \begin{itemize}
+      \item $L_0/L_1$ 희소 정규화: 모델 복잡도와 충실도의 균형
+      \item 통계학/기계학습의 핵심 개념을 예술 생성에 적용
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+% =================================================================
+\section{예술적 가치}
+% =================================================================
+
+\begin{frame}{예술적 가치}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      \begin{block}{1. 제약이 만드는 미학}
+        \begin{itemize}
+          \item 오직 \textbf{직선}과 \textbf{점}만으로 이미지 재현
+          \item 제한된 매체가 강제하는 추상화 →\\
+                사진과는 다른 \textbf{독특한 질감과 분위기}
+          \item 19세기 Mary Everest Boole의 ``곡선 바느질''에서\\
+                유래한 수학 교육 도구의 현대적 재해석
+        \end{itemize}
+      \end{block}
+
+      \vspace{0.2cm}
+      \begin{block}{2. 알고리즘이 예술가가 되는 순간}
+        \begin{itemize}
+          \item 수천 개의 실이 \textbf{중첩}되며 명암 구현
+          \item 인간이 직관으로 하기 어려운 \textbf{정밀한 배치}를\\
+                수학이 대신 수행
+          \item 결과물은 디지털이면서 동시에 물리적 제작 가능
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.4\textwidth}
+      \begin{tikzpicture}[scale=0.75]
+        % Dense string art illustration
+        \draw[thick] (0,0) circle (2.5);
+        \foreach \i in {0,1,...,35} {
+          \fill ({2.5*cos(\i*10)},{2.5*sin(\i*10)}) circle (0.8pt);
+        }
+        % Many crossing lines to show density effect
+        \foreach \a/\b in {0/13,1/14,2/15,3/16,4/17,5/18,6/19,7/20,
+                           8/21,9/22,10/23,11/24,12/25,13/26,14/27,
+                           15/28,16/29,17/30,18/31,19/32,20/33,
+                           0/18,5/23,10/28,15/33,3/21,8/26,
+                           1/20,6/24,11/29,2/22,7/27,12/32} {
+          \draw[black!25,line width=0.2pt]
+            ({2.5*cos(\a*10)},{2.5*sin(\a*10)}) --
+            ({2.5*cos(\b*10)},{2.5*sin(\b*10)});
+        }
+        \node[font=\scriptsize,align=center] at (0,-3.3)
+          {실의 중첩이 만드는 명암};
+      \end{tikzpicture}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{수학과 예술의 만남}
+  \begin{block}{3. Bridges Conference의 정신}
+    Bridges는 \textbf{수학·과학·예술}의 교차점을 탐구하는 학회.
+    Computational String Art는 이 정신의 대표적 사례.
+  \end{block}
+
+  \vspace{0.2cm}
+  \begin{center}
+  \begin{tikzpicture}[
+    node distance=1.9cm,
+    circle node/.style={circle,draw,minimum size=1.6cm,align=center,
+                        font=\scriptsize,thick},
+    arr/.style={<->,thick,gray!60},
+    scale=0.85, transform shape
+  ]
+    \node[circle node,fill=blue!10] (math) {수학\\{\tiny 최적화}\\{\tiny 정규화}};
+    \node[circle node,fill=red!10,right=of math] (art) {예술\\{\tiny 추상화}\\{\tiny 조형}};
+    \node[circle node,fill=green!10,below right=1.2cm and 1.1cm of math] (tech)
+      {기술\\{\tiny 알고리즘}\\{\tiny 제작}};
+
+    \draw[arr] (math) -- node[above,font=\tiny]{에너지 최소화 → 이미지 생성} (art);
+    \draw[arr] (math) -- node[left,font=\tiny,align=right]{탐욕 알고리즘\\병렬 계산} (tech);
+    \draw[arr] (art) -- node[right,font=\tiny,align=left]{디지털 → 실물\\스트링 아트} (tech);
+  \end{tikzpicture}
+  \end{center}
+
+  \vspace{0.1cm}
+  \begin{exampleblock}{의미}
+    ``수학이 예술을 만든다'' — 최적화 수식 하나가 수천 개의 실을 이끌어
+    하나의 이미지를 완성
+  \end{exampleblock}
+\end{frame}
+
+% =================================================================
+\section{결과 및 향후 계획}
+% =================================================================
+
+\begin{frame}{현재까지의 결과}
+  \begin{columns}[T]
+    \begin{column}{0.48\textwidth}
+      \begin{block}{구현 완료}
+        \begin{itemize}
+          \item 전체 알고리즘 파이프라인 구현\\
+                (1,362줄 Python 코드)
+          \item Beer--Lambert 투과율 모델
+          \item 에지 기반 중요도 맵
+          \item Beam Lookahead + 희소 정규화
+          \item 정련 / 압축 / SA 후처리
+          \item 병렬화 (multiprocessing + thread)
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \begin{block}{출력물}
+        \begin{enumerate}
+          \item 렌더링 이미지 ($R = 255T$)
+          \item 핀 시퀀스 (연결 순서)
+          \item 물리 좌표 (mm 단위, 지름 600mm)
+          \item 핀 위치 템플릿 (제작용)
+        \end{enumerate}
+      \end{block}
+
+      \vspace{0.1cm}
+      \begin{block}{품질 지표}
+        \begin{itemize}\setlength\itemsep{0pt}
+          \item MSE: 평균 제곱 오차
+          \item PSNR: $10\log_{10}\!\left(\frac{255^2}{\text{MSE}}\right)$ dB
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{최종 목표 및 향후 계획}
+  \begin{block}{최종 목표}
+    Bridges 2022 논문의 탐욕 알고리즘을 기반으로,
+    \textbf{수학적 개선}을 통해 품질을 높이고,
+    \textbf{실물 스트링 아트}를 제작하여
+    수학과 예술의 융합을 보여준다.
+  \end{block}
+
+  \vspace{0.3cm}
+  \begin{enumerate}
+    \item \textbf{실험}: 다양한 이미지(인물, 풍경)에 대한 결과 비교 및 파라미터 분석
+    \item \textbf{정량 비교}: Bridges 논문 결과와의 RMS/PSNR 수치 비교
+    \item \textbf{실물 제작}: 직경 60cm 프레임, 288핀, 검정 실로 스트링 아트 완성
+    \item \textbf{최종 보고서}: 수학적 분석 + 실험 결과 + 제작 과정 문서화
+  \end{enumerate}
+
+  \vspace{0.3cm}
+  \begin{alertblock}{핵심 메시지}
+    수학적 최적화 기법을 예술적 표현에 적용하여,
+    \textbf{``수학이 예술을 만드는''} 과정을
+    이론과 실물 모두에서 보여주는 것
+  \end{alertblock}
+\end{frame}
+
+% ── 감사 슬라이드 ────────────────────────────────────
+\begin{frame}
+  \centering
+  \vspace{2cm}
+  {\Huge 감사합니다}\\[1cm]
+  {\large 질문 및 토론}\\[0.5cm]
+  {\small\texttt{KSA24-092/PAPERKIM}}
+\end{frame}
+
+\end{document}
